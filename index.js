@@ -32,11 +32,94 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
 
+// Peta byte CP1252 (0x80-0x9F) yang berbeda dari Latin-1/ISO-8859-1.
+// Dipakai untuk mendeteksi & membalik mojibake seperti mojibake untuk
+// non-breaking space atau hyphen khusus yang muncul ketika teks UTF-8
+// sempat di-decode salah sebagai CP1252 lalu di-encode ulang jadi UTF-8.
+const CP1252_MAP = {
+  0x80: 0x20ac, 0x82: 0x201a, 0x83: 0x0192, 0x84: 0x201e, 0x85: 0x2026,
+  0x86: 0x2020, 0x87: 0x2021, 0x88: 0x02c6, 0x89: 0x2030, 0x8a: 0x0160,
+  0x8b: 0x2039, 0x8c: 0x0152, 0x8e: 0x017d, 0x91: 0x2018, 0x92: 0x2019,
+  0x93: 0x201c, 0x94: 0x201d, 0x95: 0x2022, 0x96: 0x2013, 0x97: 0x2014,
+  0x98: 0x02dc, 0x99: 0x2122, 0x9a: 0x0161, 0x9b: 0x203a, 0x9c: 0x0153,
+  0x9e: 0x017e, 0x9f: 0x0178,
+};
+const REVERSE_CP1252 = new Map(
+  Object.entries(CP1252_MAP).map(([byte, cp]) => [cp, parseInt(byte)])
+);
+
+// Coba membalik satu potongan teks mojibake (rangkaian karakter yang
+// seluruhnya berasal dari byte < 0x100 setelah dipetakan balik ke CP1252)
+// menjadi UTF-8 yang benar. Mengembalikan null kalau tidak cocok pola ini,
+// supaya teks normal tidak ikut dirusak.
+function tryFixMojibakeChunk(chunk) {
+  const bytes = [];
+  for (const ch of chunk) {
+    const cp = ch.codePointAt(0);
+    if (REVERSE_CP1252.has(cp)) {
+      bytes.push(REVERSE_CP1252.get(cp));
+    } else if (cp < 0x100) {
+      bytes.push(cp);
+    } else {
+      return null;
+    }
+  }
+  try {
+    const decoded = Buffer.from(bytes).toString('utf-8');
+    if (decoded.includes('\uFFFD')) return null;
+    return decoded;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Kumpulan karakter unicode yang menjadi hasil pemetaan CP1252 (mis. smart
+// quotes, trademark, dsb) — dipakai untuk membangun regex deteksi mojibake.
+const CP1252_TARGET_CHARS = Object.values(CP1252_MAP)
+  .map((cp) => String.fromCodePoint(cp))
+  .join('');
+const MOJIBAKE_PATTERN = new RegExp(
+  `[\u00c3\u00c2\u00e2][\\x80-\\xff${CP1252_TARGET_CHARS.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}]{1,3}`,
+  'g'
+);
+
+// Perbaiki mojibake dengan mencari kandidat rangkaian karakter yang diawali
+// "Ã"/"Â"/"â" (indikator umum UTF-8 salah decode) dan membalikkannya per
+// potongan, bukan seluruh teks sekaligus, supaya bagian yang sudah benar
+// tidak ikut terganggu.
+function fixMojibake(text) {
+  return text.replace(MOJIBAKE_PATTERN, (match) => {
+    const fixed = tryFixMojibakeChunk(match);
+    return fixed !== null ? fixed : match;
+  });
+}
+
 // Discord membatasi placeholder TextInput maksimal 100 karakter.
 // Helper ini mencegah bot crash diam-diam kalau placeholder diubah
 // jadi kepanjangan di kemudian hari.
 function safePlaceholder(text) {
   return text.length > 100 ? text.slice(0, 97) + '...' : text;
+}
+
+// Sanitasi akhir: perbaiki mojibake, lalu normalkan semua karakter
+// typographic (smart quotes, dash khusus, dsb) ke karakter ASCII biasa
+// supaya file .txt yang dihasilkan selalu bersih di aplikasi apa pun.
+function sanitizeText(text) {
+  let result = fixMojibake(text);
+
+  const replacements = [
+    [/[\u2018\u2019\u201a\u2032]/g, "'"],
+    [/[\u201c\u201d\u201e\u2033]/g, '"'],
+    [/[\u2013\u2014\u2011]/g, '-'],
+    [/\u2026/g, '...'],
+    [/[\u00a0\u202f]/g, ' '],
+    [/[\u200b-\u200d\ufeff]/g, ''],
+  ];
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement);
+  }
+
+  return result;
 }
 
 // ================== SLASH COMMAND DEFINITION ==================
@@ -86,14 +169,14 @@ function buildCharacterModal() {
     .setCustomId('charName')
     .setLabel('Nama Karakter')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: Alina Ratri'))
+    .setPlaceholder(safePlaceholder('Contoh: Jean Corleone'))
     .setRequired(true);
 
   const placeInput = new TextInputBuilder()
     .setCustomId('charPlace')
     .setLabel('Tempat Lahir')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: Yogyakarta'))
+    .setPlaceholder(safePlaceholder('Contoh: Los Santos'))
     .setRequired(true);
 
   const dateInput = new TextInputBuilder()
@@ -107,7 +190,7 @@ function buildCharacterModal() {
     .setCustomId('charParagraphs')
     .setLabel('Jumlah Paragraf (angka)')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: 3'))
+    .setPlaceholder(safePlaceholder('Contoh: 4'))
     .setRequired(true);
 
   const notesInput = new TextInputBuilder()
@@ -142,8 +225,8 @@ function buildPanel() {
     .addFields({
       name: '✅ Fitur',
       value:
-        '• Struktur Orientasi – Peristiwa dan Masalah – Reorientasi\n' +
-        '• Sudut pandang orang ketiga\n' +
+        '• Anti detect zerogpt dan ai detector\n' +
+        '• Cerita/story berbeda-beda\n' +
         '• Generate cepat, langsung jadi\n' +
         '• Format file `.txt` langsung pakai\n' +
         '• Hasil privat, channel tetap bersih',
@@ -217,13 +300,14 @@ client.on('interactionCreate', async (interaction) => {
     const paragraphs = Math.max(1, Math.min(10, parseInt(paragraphsRaw) || 3));
 
     try {
-      const story = await generateCharacterStory({
+      const rawStory = await generateCharacterStory({
         name,
         place,
         date,
         paragraphs,
         notes,
       });
+      const story = sanitizeText(rawStory);
 
       // Susun isi file .txt: judul + metadata singkat + isi cerita.
       const fileContent =
@@ -306,6 +390,15 @@ Aturan sudut pandang:
   atau orang kedua ("kamu","anda").
 - Jangan gunakan judul/heading seperti "Orientasi:" dsb di hasil akhir.
 - Sesuaikan proporsi ketiga bagian dengan jumlah paragraf yang diminta.
+
+Aturan karakter/typografi (PENTING):
+- Gunakan HANYA tanda kutip lurus biasa (') dan (") — JANGAN gunakan smart
+  quotes/curly quotes ('' "").
+- Gunakan tanda hubung biasa (-) untuk jeda dalam kalimat — JANGAN gunakan
+  en-dash (–) atau em-dash (—).
+- Gunakan tiga titik biasa (...) — JANGAN gunakan karakter ellipsis tunggal (…).
+- Hindari karakter unicode non-standar lainnya. Tulis murni dengan huruf,
+  angka, dan tanda baca ASCII standar.
 `.trim();
 
   const userPrompt = `
@@ -317,7 +410,7 @@ Reorientasi, sudut pandang orang ketiga.
 Nama karakter: ${name}
 Tempat lahir: ${place}
 Tanggal lahir: ${date}
-Latar belakang & masalah yang dihadapi: ${notes}
+Latar belakang/Kisah/Pekerjaan: ${notes}
 
 Ketentuan:
 - Paragraf awal (Orientasi): sebutkan tanggal dan tempat lahir secara
