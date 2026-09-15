@@ -6,6 +6,11 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ChannelType,
   REST,
   Routes,
   AttachmentBuilder,
@@ -39,6 +44,17 @@ const commands = [
   new SlashCommandBuilder()
     .setName('buatcs')
     .setDescription('Buat character story dengan form input'),
+  new SlashCommandBuilder()
+    .setName('setchannel')
+    .setDescription('Kirim panel Create Character Story ke sebuah channel (admin only)')
+    .addChannelOption((opt) =>
+      opt
+        .setName('channel')
+        .setDescription('Channel tujuan panel')
+        .addChannelTypes(ChannelType.GuildText)
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
 ].map((cmd) => cmd.toJSON());
 
 async function registerCommands() {
@@ -60,58 +76,130 @@ client.once('clientReady', () => {
   registerCommands();
 });
 
+// ================== HELPER: BUAT MODAL ==================
+function buildCharacterModal() {
+  const modal = new ModalBuilder()
+    .setCustomId('characterModal')
+    .setTitle('Buat Character Story');
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId('charName')
+    .setLabel('Nama Karakter')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(safePlaceholder('Contoh: Jean Corleone'))
+    .setRequired(true);
+
+  const placeInput = new TextInputBuilder()
+    .setCustomId('charPlace')
+    .setLabel('Tempat Lahir')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(safePlaceholder('Contoh: New York'))
+    .setRequired(true);
+
+  const dateInput = new TextInputBuilder()
+    .setCustomId('charDate')
+    .setLabel('Tanggal Lahir')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(safePlaceholder('Contoh: 14 Februari 2001'))
+    .setRequired(true);
+
+  const paragraphInput = new TextInputBuilder()
+    .setCustomId('charParagraphs')
+    .setLabel('Jumlah Paragraf (angka)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder(safePlaceholder('Contoh: 3'))
+    .setRequired(true);
+
+  const notesInput = new TextInputBuilder()
+    .setCustomId('charNotes')
+    .setLabel('Latar Belakang & Masalah yang Dihadapi')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder(safePlaceholder('Contoh: anak sulung, pendiam. Bisnisnya mengalami penurunan profit'))
+    .setRequired(false);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(nameInput),
+    new ActionRowBuilder().addComponents(placeInput),
+    new ActionRowBuilder().addComponents(dateInput),
+    new ActionRowBuilder().addComponents(paragraphInput),
+    new ActionRowBuilder().addComponents(notesInput)
+  );
+
+  return modal;
+}
+
+// ================== HELPER: BUAT PANEL (embed + tombol) ==================
+function buildPanel() {
+  const embed = new EmbedBuilder()
+    .setTitle('📝 Character Story Generator')
+    .setDescription(
+      '**Tekan tombol di bawah untuk membuat Character Story kamu!**\n\n' +
+        '> Isi form dengan data karakter IC kamu.\n' +
+        '> AI akan otomatis membuat CS berdasarkan struktur teks biografi.\n' +
+        '> Hasil dikirim dalam format `.txt` siap pakai.\n' +
+        '> Balasan bersifat privat — hanya kamu yang bisa melihatnya.'
+    )
+    .addFields({
+      name: '✅ Fitur',
+      value:
+        '• Struktur Orientasi – Peristiwa dan Masalah – Reorientasi\n' +
+        '• Sudut pandang orang ketiga\n' +
+        '• Generate cepat, langsung jadi\n' +
+        '• Format file `.txt` langsung pakai\n' +
+        '• Hasil privat, channel tetap bersih',
+    })
+    .setColor(0x5865f2)
+    .setFooter({ text: 'Character Story Generator' })
+    .setTimestamp();
+
+  const button = new ButtonBuilder()
+    .setCustomId('openCharacterModal')
+    .setLabel('Create CS')
+    .setEmoji('📋')
+    .setStyle(ButtonStyle.Primary);
+
+  const row = new ActionRowBuilder().addComponents(button);
+
+  return { embeds: [embed], components: [row] };
+}
+
 // ================== EVENT: INTERACTION ==================
 client.on('interactionCreate', async (interaction) => {
-  // --- Saat user pakai /character, tampilkan modal ---
+  // --- /buatcs: tampilkan modal langsung ---
   if (interaction.isChatInputCommand() && interaction.commandName === 'buatcs') {
-    const modal = new ModalBuilder()
-      .setCustomId('characterModal')
-      .setTitle('Buat Character Story');
+    await interaction.showModal(buildCharacterModal());
+  }
 
-    const nameInput = new TextInputBuilder()
-      .setCustomId('charName')
-      .setLabel('Nama Karakter')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder(safePlaceholder('Contoh: Alina Ratri'))
-      .setRequired(true);
+  // --- /setchannel: kirim panel ke channel yang dipilih (admin only) ---
+  if (interaction.isChatInputCommand() && interaction.commandName === 'setchannel') {
+    const targetChannel = interaction.options.getChannel('channel');
 
-    const placeInput = new TextInputBuilder()
-      .setCustomId('charPlace')
-      .setLabel('Tempat Lahir')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder(safePlaceholder('Contoh: Yogyakarta'))
-      .setRequired(true);
+    if (!targetChannel?.isTextBased()) {
+      await interaction.reply({
+        content: '⚠️ Channel yang dipilih harus berupa text channel.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-    const dateInput = new TextInputBuilder()
-      .setCustomId('charDate')
-      .setLabel('Tanggal Lahir')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder(safePlaceholder('Contoh: 14 Februari 2001'))
-      .setRequired(true);
+    try {
+      await targetChannel.send(buildPanel());
+      await interaction.reply({
+        content: `✅ Panel Create Character Story berhasil dikirim ke <#${targetChannel.id}>.`,
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      console.error(err);
+      await interaction.reply({
+        content: '⚠️ Gagal mengirim panel. Pastikan bot punya izin mengirim pesan & embed di channel tersebut.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
 
-    const paragraphInput = new TextInputBuilder()
-      .setCustomId('charParagraphs')
-      .setLabel('Jumlah Paragraf (angka)')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder(safePlaceholder('Contoh: 3'))
-      .setRequired(true);
-
-    const notesInput = new TextInputBuilder()
-      .setCustomId('charNotes')
-      .setLabel('Latar Belakang & Masalah yang Dihadapi')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder(safePlaceholder('Contoh: anak sulung, pendiam. Bisnisnya mengalami penurunan profit'))
-      .setRequired(false);
-
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(nameInput),
-      new ActionRowBuilder().addComponents(placeInput),
-      new ActionRowBuilder().addComponents(dateInput),
-      new ActionRowBuilder().addComponents(paragraphInput),
-      new ActionRowBuilder().addComponents(notesInput)
-    );
-
-    await interaction.showModal(modal);
+  // --- Tombol "Create CS" di panel: buka modal yang sama ---
+  if (interaction.isButton() && interaction.customId === 'openCharacterModal') {
+    await interaction.showModal(buildCharacterModal());
   }
 
   // --- Saat modal disubmit ---
