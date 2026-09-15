@@ -27,6 +27,13 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds],
 });
 
+// Discord membatasi placeholder TextInput maksimal 100 karakter.
+// Helper ini mencegah bot crash diam-diam kalau placeholder diubah
+// jadi kepanjangan di kemudian hari.
+function safePlaceholder(text) {
+  return text.length > 100 ? text.slice(0, 97) + '...' : text;
+}
+
 // ================== SLASH COMMAND DEFINITION ==================
 const commands = [
   new SlashCommandBuilder()
@@ -65,35 +72,35 @@ client.on('interactionCreate', async (interaction) => {
       .setCustomId('charName')
       .setLabel('Nama Karakter')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Alina Ratri')
+      .setPlaceholder(safePlaceholder('Contoh: Alina Ratri'))
       .setRequired(true);
 
     const placeInput = new TextInputBuilder()
       .setCustomId('charPlace')
       .setLabel('Tempat Lahir')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Yogyakarta')
+      .setPlaceholder(safePlaceholder('Contoh: Yogyakarta'))
       .setRequired(true);
 
     const dateInput = new TextInputBuilder()
       .setCustomId('charDate')
       .setLabel('Tanggal Lahir')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: 14 Februari 2001')
+      .setPlaceholder(safePlaceholder('Contoh: 14 Februari 2001'))
       .setRequired(true);
 
     const paragraphInput = new TextInputBuilder()
       .setCustomId('charParagraphs')
       .setLabel('Jumlah Paragraf (angka)')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: 3')
+      .setPlaceholder(safePlaceholder('Contoh: 3'))
       .setRequired(true);
 
     const notesInput = new TextInputBuilder()
       .setCustomId('charNotes')
       .setLabel('Latar Belakang & Masalah yang Dihadapi')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Contoh: anak sulung, pendiam. Sedang menghadapi bisnisnya yang mengalami penurunan profit besar-besaran')
+      .setPlaceholder(safePlaceholder('Contoh: anak sulung, pendiam. Bisnisnya mengalami penurunan profit'))
       .setRequired(false);
 
     modal.addComponents(
