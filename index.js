@@ -8,7 +8,8 @@ const {
   ActionRowBuilder,
   REST,
   Routes,
-  EmbedBuilder,
+  AttachmentBuilder,
+  MessageFlags,
 } = require('discord.js');
 const OpenAI = require('openai');
 require('dotenv').config();
@@ -55,7 +56,7 @@ client.once('clientReady', () => {
 // ================== EVENT: INTERACTION ==================
 client.on('interactionCreate', async (interaction) => {
   // --- Saat user pakai /character, tampilkan modal ---
-  if (interaction.isChatInputCommand() && interaction.commandName === 'character') {
+  if (interaction.isChatInputCommand() && interaction.commandName === 'buatcs') {
     const modal = new ModalBuilder()
       .setCustomId('characterModal')
       .setTitle('Buat Character Story');
@@ -64,14 +65,14 @@ client.on('interactionCreate', async (interaction) => {
       .setCustomId('charName')
       .setLabel('Nama Karakter')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Jean Corleone')
+      .setPlaceholder('Contoh: Alina Ratri')
       .setRequired(true);
 
     const placeInput = new TextInputBuilder()
       .setCustomId('charPlace')
       .setLabel('Tempat Lahir')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Los Angeles')
+      .setPlaceholder('Contoh: Yogyakarta')
       .setRequired(true);
 
     const dateInput = new TextInputBuilder()
@@ -108,7 +109,9 @@ client.on('interactionCreate', async (interaction) => {
 
   // --- Saat modal disubmit ---
   if (interaction.isModalSubmit() && interaction.customId === 'characterModal') {
-    await interaction.deferReply();
+    // Ephemeral: hanya user yang bersangkutan yang bisa melihat balasan ini,
+    // jadi chat server tetap bersih.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const name = interaction.fields.getTextInputValue('charName');
     const place = interaction.fields.getTextInputValue('charPlace');
@@ -127,18 +130,25 @@ client.on('interactionCreate', async (interaction) => {
         notes,
       });
 
-      const embed = new EmbedBuilder()
-        .setTitle(`📖 Kisah ${name}`)
-        .setDescription(story.length > 4096 ? story.slice(0, 4090) + '...' : story)
-        .addFields(
-          { name: 'Tempat Lahir', value: place, inline: true },
-          { name: 'Tanggal Lahir', value: date, inline: true },
-          { name: 'Jumlah Paragraf', value: `${paragraphs}`, inline: true }
-        )
-        .setColor(0x8e7cc3)
-        .setFooter({ text: 'Character Story Generator • Struktur Teks Biografi' });
+      // Susun isi file .txt: judul + metadata singkat + isi cerita.
+      const fileContent =
+        `CHARACTER STORY - ${name}\n` +
+        `Tempat Lahir : ${place}\n` +
+        `Tanggal Lahir: ${date}\n` +
+        `Jumlah Paragraf: ${paragraphs}\n` +
+        `${'-'.repeat(40)}\n\n` +
+        story;
 
-      await interaction.editReply({ embeds: [embed] });
+      // Nama file aman (hilangkan karakter yang tidak valid di nama file)
+      const safeName = name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_') || 'character';
+      const attachment = new AttachmentBuilder(Buffer.from(fileContent, 'utf-8'), {
+        name: `CS_${safeName}.txt`,
+      });
+
+      await interaction.editReply({
+        content: `📄 Character story untuk **${name}** sudah jadi. Tinggal download file-nya di bawah ini (hanya kamu yang bisa lihat pesan ini).`,
+        files: [attachment],
+      });
     } catch (err) {
       console.error(err);
       const isRateLimit = err?.status === 429;
