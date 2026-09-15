@@ -29,7 +29,7 @@ const client = new Client({
 // ================== SLASH COMMAND DEFINITION ==================
 const commands = [
   new SlashCommandBuilder()
-    .setName('character')
+    .setName('buatcs')
     .setDescription('Buat character story dengan form input'),
 ].map((cmd) => cmd.toJSON());
 
@@ -64,14 +64,14 @@ client.on('interactionCreate', async (interaction) => {
       .setCustomId('charName')
       .setLabel('Nama Karakter')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Alina Ratri')
+      .setPlaceholder('Contoh: Jean Corleone')
       .setRequired(true);
 
     const placeInput = new TextInputBuilder()
       .setCustomId('charPlace')
       .setLabel('Tempat Lahir')
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('Contoh: Yogyakarta')
+      .setPlaceholder('Contoh: Los Angeles')
       .setRequired(true);
 
     const dateInput = new TextInputBuilder()
@@ -90,9 +90,9 @@ client.on('interactionCreate', async (interaction) => {
 
     const notesInput = new TextInputBuilder()
       .setCustomId('charNotes')
-      .setLabel('Sifat / Detail Tambahan (opsional)')
+      .setLabel('Latar Belakang & Masalah yang Dihadapi')
       .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('Contoh: pendiam, suka laut, kehilangan ayahnya')
+      .setPlaceholder('Contoh: anak sulung, pendiam. Sedang menghadapi bisnisnya yang mengalami penurunan profit besar-besaran')
       .setRequired(false);
 
     modal.addComponents(
@@ -136,7 +136,7 @@ client.on('interactionCreate', async (interaction) => {
           { name: 'Jumlah Paragraf', value: `${paragraphs}`, inline: true }
         )
         .setColor(0x8e7cc3)
-        .setFooter({ text: 'Character Story Generator' });
+        .setFooter({ text: 'Character Story Generator • Struktur Teks Biografi' });
 
       await interaction.editReply({ embeds: [embed] });
     } catch (err) {
@@ -154,32 +154,61 @@ client.on('interactionCreate', async (interaction) => {
 // ================== GENERATOR CERITA ==================
 async function generateCharacterStory({ name, place, date, paragraphs, notes }) {
   const systemPrompt = `
-Kamu adalah penulis sastra yang menulis narasi karakter dengan gaya bebas (prosa liris),
-memadukan unsur naratif dan puitis. Tulisanmu mengalir, penuh citraan (imagery), metafora,
-dan majas, namun tetap menyampaikan informasi biografis karakter secara tersirat (ambigu,
-tidak gamblang/report-style). Hindari struktur seperti "Nama: ... Lahir: ..." — semua data
-harus dijalin secara halus ke dalam narasi, seolah pembaca menemukan fakta itu di sela-sela
-kalimat, bukan disodorkan langsung.
+Kamu adalah penulis character story untuk kebutuhan roleplay (IC/In-Character)
+di server Discord. Tulisanmu WAJIB mengikuti STRUKTUR TEKS BIOGRAFI baku
+Bahasa Indonesia, dengan tiga bagian berurutan:
 
-Gaya penulisan:
-- Kalimat bervariasi: ada yang pendek dan menghentak, ada yang panjang dan mengalir.
-- Gunakan majas (metafora, personifikasi, simile) secukupnya, jangan berlebihan.
-- Hindari klise AI seperti "dalam dunia yang penuh warna" atau "sejak saat itu, hidupnya berubah".
-- Jangan gunakan format daftar, judul, atau penomoran. Tulis sebagai prosa mengalir.
-- Nada tulisan natural, seperti manusia bercerita, bukan seperti laporan atau ringkasan.
+1. ORIENTASI
+   Bagian pengenalan tokoh: nama, tanggal lahir, tempat lahir, dan latar
+   belakang keluarga/kehidupan awal tokoh disampaikan secara jelas dan
+   eksplisit (BUKAN tersirat/ambigu). Contoh gaya kalimat: "Brad Alvaro
+   lahir pada tanggal 1 Februari 2002 di Jepang. Ia merupakan anak dari
+   seorang ibu berdarah American-African..."
+
+2. PERISTIWA DAN MASALAH
+   Bagian ini menceritakan konflik atau masalah yang dihadapi tokoh dalam
+   hidupnya (karier, keluarga, batin, dsb) yang membuat cerita lebih hidup
+   dan menarik. Masalah ini menjadi rintangan yang harus dilalui tokoh
+   sebelum mencapai kebahagiaan di akhir cerita.
+
+3. REORIENTASI
+   Bagian penutup: menceritakan bagaimana tokoh berhasil melewati
+   masalahnya dan mencapai kebahagiaan/pencapaian di akhir cerita.
+
+Aturan sudut pandang:
+- WAJIB menggunakan sudut pandang orang KETIGA. Gunakan kata ganti
+  "ia", "dia", "beliau", "mereka", ATAU cukup ulangi NAMA KARAKTER-nya
+  secara langsung. JANGAN PERNAH menggunakan sudut pandang orang pertama
+  ("aku", "saya") atau orang kedua ("kamu", "anda").
+- Bahasa Indonesia baku, jelas, dan mudah dipahami — bukan gaya puitis,
+  bukan metafora berlebihan, bukan ambigu. Informasi harus tersampaikan
+  gamblang, sesuai kaidah teks biografi.
+- Jangan gunakan judul/heading seperti "Orientasi:", "Peristiwa dan
+  Masalah:", "Reorientasi:" di dalam hasil akhir — tulis sebagai cerita
+  yang mengalir dari satu paragraf ke paragraf lain, namun tetap
+  mengikuti urutan ketiga bagian tersebut secara implisit dalam alur cerita.
+- Sesuaikan proporsi ketiga bagian dengan jumlah paragraf yang diminta.
 `.trim();
 
   const userPrompt = `
-Tulis sebuah character story untuk karakter berikut, sepanjang ${paragraphs} paragraf.
+Tulis sebuah character story sepanjang ${paragraphs} paragraf mengikuti
+struktur teks biografi (Orientasi, Peristiwa dan Masalah, Reorientasi)
+dengan sudut pandang orang ketiga.
 
 Nama karakter: ${name}
 Tempat lahir: ${place}
 Tanggal lahir: ${date}
-Detail/sifat tambahan: ${notes}
+Latar belakang & masalah yang dihadapi: ${notes}
 
-Jalin informasi tempat dan tanggal lahir itu ke dalam narasi secara halus dan tidak eksplisit
-(misalnya lewat suasana, musim, atau kenangan tempat), bukan disebutkan sebagai fakta datar.
-Cerita harus terasa personal dan menggugah, seperti potongan babak dari kehidupan karakter.
+Ketentuan:
+- Paragraf awal (Orientasi): perkenalkan nama, tempat dan tanggal lahir,
+  serta latar belakang karakter secara jelas dan eksplisit.
+- Paragraf tengah (Peristiwa dan Masalah): kembangkan konflik/masalah yang
+  disebutkan (jika latar belakang & masalah kosong, buat konflik yang masuk
+  akal dan relevan dengan latar belakang karakter).
+- Paragraf akhir (Reorientasi): ceritakan bagaimana karakter berhasil
+  mengatasi masalahnya dan meraih kebahagiaan/pencapaian.
+- Gunakan sudut pandang orang ketiga sepanjang cerita.
 `.trim();
 
   const completion = await openai.chat.completions.create({
@@ -188,7 +217,7 @@ Cerita harus terasa personal dan menggugah, seperti potongan babak dari kehidupa
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.95,
+    temperature: 0.8,
     max_tokens: 900,
   });
 
