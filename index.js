@@ -86,14 +86,14 @@ function buildCharacterModal() {
     .setCustomId('charName')
     .setLabel('Nama Karakter')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: Jean Corleone'))
+    .setPlaceholder(safePlaceholder('Contoh: Alina Ratri'))
     .setRequired(true);
 
   const placeInput = new TextInputBuilder()
     .setCustomId('charPlace')
     .setLabel('Tempat Lahir')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: New York'))
+    .setPlaceholder(safePlaceholder('Contoh: Yogyakarta'))
     .setRequired(true);
 
   const dateInput = new TextInputBuilder()
@@ -260,45 +260,59 @@ client.on('interactionCreate', async (interaction) => {
 async function generateCharacterStory({ name, place, date, paragraphs, notes }) {
   const systemPrompt = `
 Kamu adalah penulis character story untuk kebutuhan roleplay (IC/In-Character)
-di server Discord. Tulisanmu WAJIB mengikuti STRUKTUR TEKS BIOGRAFI baku
-Bahasa Indonesia, dengan tiga bagian berurutan:
+di server Discord. Tulisanmu WAJIB mengikuti STRUKTUR TEKS BIOGRAFI, dengan
+tiga bagian berurutan, namun ditulis dengan gaya PROSA NARATIF BERMAJAS
+(bukan laporan datar, bukan pula puisi abstrak) — kira-kira 40% unsur
+kiasan/majas, 60% tetap menyampaikan informasi secara jelas.
 
-1. ORIENTASI
-   Bagian pengenalan tokoh: nama, tanggal lahir, tempat lahir, dan latar
-   belakang keluarga/kehidupan awal tokoh disampaikan secara jelas dan
-   eksplisit (BUKAN tersirat/ambigu). Contoh gaya kalimat: "Brad Alvaro
-   lahir pada tanggal 1 Februari 2002 di Jepang. Ia merupakan anak dari
-   seorang ibu berdarah American-African..."
+CONTOH GAYA YANG DIACU (ikuti nuansa ini, bukan disalin):
+"01 Januari 2000, Los Santos menyambut kelahiran Gantenbainne Mosqueda
+dengan cara yang sederhana. Tidak ada pertanda langit terbelah atau
+sesuatu yang mengubah arah kota; hanya seorang anak yang kelak akan
+mengenal jalanan lebih baik daripada cerita yang tertulis tentang
+dirinya..."
 
-2. PERISTIWA DAN MASALAH
-   Bagian ini menceritakan konflik atau masalah yang dihadapi tokoh dalam
-   hidupnya (karier, keluarga, batin, dsb) yang membuat cerita lebih hidup
-   dan menarik. Masalah ini menjadi rintangan yang harus dilalui tokoh
-   sebelum mencapai kebahagiaan di akhir cerita.
+Ciri gaya yang harus ditiru dari contoh tersebut:
+- Tanggal dan tempat lahir tetap disebut EKSPLISIT di kalimat/paragraf
+  pembuka, tapi dibungkus dalam kalimat bermajas (personifikasi kota,
+  metafora ringan) — bukan format "Nama lahir pada tanggal X di Y" yang kaku.
+- Pilih SATU ATAU DUA metafora/simbol utama (misal: kota, jalan, cahaya,
+  bayangan, cuaca, waktu) lalu pakai simbol itu berulang sebagai benang
+  merah cerita — jangan mengganti-ganti majas tiap kalimat tanpa pola.
+- Masalah/konflik disampaikan dengan nuansa reflektif dan agak tersirat
+  (pembaca paham ada perjuangan/kegagalan tanpa harus dijabarkan sangat
+  rinci secara teknis), namun tetap cukup jelas agar pembaca tahu apa
+  inti masalahnya.
+- Ending (Reorientasi) TIDAK HARUS "happy ending" yang gamblang/eksplisit.
+  Boleh berupa penerimaan diri, perjalanan yang berlanjut, atau ketenangan
+  batin — closure yang halus, bukan pencapaian besar yang disebutkan
+  gamblang seperti "sekarang ia sukses membuka 8 cabang bisnis".
+- Variasi panjang kalimat: campurkan kalimat pendek yang menghentak dengan
+  kalimat panjang yang mengalir.
+- Hindari klise AI seperti "dalam dunia yang penuh warna", "sejak saat itu
+  hidupnya berubah", "sebuah perjalanan yang tak terlupakan".
 
-3. REORIENTASI
-   Bagian penutup: menceritakan bagaimana tokoh berhasil melewati
-   masalahnya dan mencapai kebahagiaan/pencapaian di akhir cerita.
+Struktur tetap tiga bagian (tanpa heading eksplisit di hasil akhir):
+1. ORIENTASI — pengenalan tokoh: nama, tanggal & tempat lahir (eksplisit,
+   dibungkus kalimat bermajas), sedikit latar belakang/masa kecil.
+2. PERISTIWA DAN MASALAH — konflik yang dihadapi tokoh, disampaikan
+   reflektif namun cukup jelas intinya.
+3. REORIENTASI — bagaimana tokoh sampai pada titik sekarang; closure halus,
+   tidak harus berupa kemenangan besar yang eksplisit.
 
 Aturan sudut pandang:
-- WAJIB menggunakan sudut pandang orang KETIGA. Gunakan kata ganti
-  "ia", "dia", "beliau", "mereka", ATAU cukup ulangi NAMA KARAKTER-nya
-  secara langsung. JANGAN PERNAH menggunakan sudut pandang orang pertama
-  ("aku", "saya") atau orang kedua ("kamu", "anda").
-- Bahasa Indonesia baku, jelas, dan mudah dipahami — bukan gaya puitis,
-  bukan metafora berlebihan, bukan ambigu. Informasi harus tersampaikan
-  gamblang, sesuai kaidah teks biografi.
-- Jangan gunakan judul/heading seperti "Orientasi:", "Peristiwa dan
-  Masalah:", "Reorientasi:" di dalam hasil akhir — tulis sebagai cerita
-  yang mengalir dari satu paragraf ke paragraf lain, namun tetap
-  mengikuti urutan ketiga bagian tersebut secara implisit dalam alur cerita.
+- WAJIB sudut pandang orang KETIGA: "ia", "dia", "beliau", "mereka", atau
+  ulangi NAMA KARAKTER langsung. JANGAN PERNAH orang pertama ("aku","saya")
+  atau orang kedua ("kamu","anda").
+- Jangan gunakan judul/heading seperti "Orientasi:" dsb di hasil akhir.
 - Sesuaikan proporsi ketiga bagian dengan jumlah paragraf yang diminta.
 `.trim();
 
   const userPrompt = `
-Tulis sebuah character story sepanjang ${paragraphs} paragraf mengikuti
-struktur teks biografi (Orientasi, Peristiwa dan Masalah, Reorientasi)
-dengan sudut pandang orang ketiga.
+Tulis sebuah character story sepanjang ${paragraphs} paragraf, dengan gaya
+prosa naratif bermajas seperti pada contoh acuan (±40% majas, 60% kejelasan
+informasi), mengikuti struktur Orientasi - Peristiwa dan Masalah -
+Reorientasi, sudut pandang orang ketiga.
 
 Nama karakter: ${name}
 Tempat lahir: ${place}
@@ -306,13 +320,17 @@ Tanggal lahir: ${date}
 Latar belakang & masalah yang dihadapi: ${notes}
 
 Ketentuan:
-- Paragraf awal (Orientasi): perkenalkan nama, tempat dan tanggal lahir,
-  serta latar belakang karakter secara jelas dan eksplisit.
-- Paragraf tengah (Peristiwa dan Masalah): kembangkan konflik/masalah yang
-  disebutkan (jika latar belakang & masalah kosong, buat konflik yang masuk
-  akal dan relevan dengan latar belakang karakter).
-- Paragraf akhir (Reorientasi): ceritakan bagaimana karakter berhasil
-  mengatasi masalahnya dan meraih kebahagiaan/pencapaian.
+- Paragraf awal (Orientasi): sebutkan tanggal dan tempat lahir secara
+  eksplisit namun dibungkus kalimat bermajas (personifikasi kota/tempat,
+  metafora ringan), lalu masuk ke sedikit latar belakang karakter.
+- Pilih satu-dua simbol/metafora utama yang relevan dengan latar belakang
+  karakter (kota, jalan, cahaya, laut, waktu, dsb) dan pakai konsisten.
+- Paragraf tengah (Peristiwa dan Masalah): kembangkan konflik yang
+  disebutkan user (jika kosong, buat konflik yang relevan dengan latar
+  belakangnya) secara reflektif namun jelas maksudnya.
+- Paragraf akhir (Reorientasi): tutup dengan closure yang halus — boleh
+  berupa penerimaan atau perjalanan yang masih berlanjut, tidak harus
+  pencapaian besar yang disebut gamblang.
 - Gunakan sudut pandang orang ketiga sepanjang cerita.
 `.trim();
 
@@ -322,8 +340,8 @@ Ketentuan:
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    temperature: 0.8,
-    max_tokens: 900,
+    temperature: 0.9,
+    max_tokens: 1000,
   });
 
   return completion.choices[0].message.content.trim();
