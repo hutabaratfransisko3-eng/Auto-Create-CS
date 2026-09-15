@@ -1,0 +1,18 @@
+{
+  "name": "character-story-bot",
+  "version": "1.0.0",
+  "description": "Discord bot untuk membuat character story dengan gaya prosa liris",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "openai": "^4.68.0"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}
