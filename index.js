@@ -398,6 +398,20 @@ Aturan sudut pandang:
 - Jangan gunakan judul/heading seperti "Orientasi:" dsb di hasil akhir.
 - Sesuaikan proporsi ketiga bagian dengan jumlah paragraf yang diminta.
 
+Aturan konsistensi latar/budaya (PENTING):
+- Karakter ini berada di dunia roleplay bergaya kota Amerika/western
+  (mis. Los Santos ala GTA). JANGAN memasukkan unsur budaya, istilah,
+  nama tempat, makanan, bahasa daerah, atau referensi khas Indonesia
+  (misal: "warung", "angkot", "becak", "rupiah", "kampung", nama jalan
+  Indonesia, dsb) KECUALI memang disebutkan eksplisit oleh user di
+  tempat lahir/latar belakang karakter.
+- Nama tempat, institusi, profesi, dan detail lingkungan yang ditambahkan
+  AI harus konsisten dengan nuansa kota Amerika/barat (nama jalan ala
+  Amerika, institusi bergaya Amerika, dsb), SEKALIPUN narasinya ditulis
+  dalam Bahasa Indonesia.
+- Bahasa penulisan tetap Bahasa Indonesia yang baik dan benar — yang
+  dibatasi hanya unsur BUDAYA/SETTING-nya, bukan bahasanya.
+
 Aturan karakter/typografi (PENTING):
 - Gunakan HANYA tanda kutip lurus biasa (') dan (") — JANGAN gunakan smart
   quotes/curly quotes ('' "").
@@ -475,9 +489,30 @@ async function callGroqForStory(messages) {
     model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
     messages,
     temperature: 0.9,
-    max_tokens: 1000,
+    // max_completion_tokens (bukan max_tokens yang sudah deprecated) —
+    // untuk model reasoning seperti gpt-oss, token "berpikir" ikut
+    // terhitung di sini, jadi nilainya harus jauh lebih besar dari
+    // perkiraan panjang cerita supaya hasil akhir tidak terpotong.
+    max_completion_tokens: 3000,
+    // reasoning_effort 'low' + include_reasoning false: minimalkan token
+    // yang terpakai untuk "berpikir" dan jangan kembalikan reasoning
+    // trace-nya, supaya budget token lebih banyak terpakai untuk cerita.
+    reasoning_effort: 'low',
+    include_reasoning: false,
   });
-  return completion.choices[0].message.content.trim();
+
+  const choice = completion.choices[0];
+  const content = choice.message.content?.trim();
+
+  if (!content) {
+    // Kalau tetap kosong (misal karena finish_reason 'length'), lempar
+    // error yang jelas supaya bisa ditangani/di-retry oleh pemanggil.
+    throw new Error(
+      `Groq mengembalikan konten kosong (finish_reason: ${choice.finish_reason}).`
+    );
+  }
+
+  return content;
 }
 
 // Cek tiap paragraf: apakah klausa sebelum koma PERTAMA di awal paragraf
