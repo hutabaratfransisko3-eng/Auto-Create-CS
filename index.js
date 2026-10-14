@@ -169,14 +169,14 @@ function buildCharacterModal() {
     .setCustomId('charName')
     .setLabel('Nama Karakter')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: Jean Corleone'))
+    .setPlaceholder(safePlaceholder('Contoh: Alina Ratri'))
     .setRequired(true);
 
   const placeInput = new TextInputBuilder()
     .setCustomId('charPlace')
     .setLabel('Tempat Lahir')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: Los Santos'))
+    .setPlaceholder(safePlaceholder('Contoh: Yogyakarta'))
     .setRequired(true);
 
   const dateInput = new TextInputBuilder()
@@ -190,7 +190,7 @@ function buildCharacterModal() {
     .setCustomId('charParagraphs')
     .setLabel('Jumlah Paragraf (angka)')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: 4'))
+    .setPlaceholder(safePlaceholder('Contoh: 3'))
     .setRequired(true);
 
   const notesInput = new TextInputBuilder()
@@ -225,8 +225,8 @@ function buildPanel() {
     .addFields({
       name: '✅ Fitur',
       value:
-        '• Anti detect zerogpt dan ai detector\n' +
-        '• Cerita/story berbeda-beda\n' +
+        '• Struktur Orientasi – Peristiwa dan Masalah – Reorientasi\n' +
+        '• Sudut pandang orang ketiga\n' +
         '• Generate cepat, langsung jadi\n' +
         '• Format file `.txt` langsung pakai\n' +
         '• Hasil privat, channel tetap bersih',
@@ -375,6 +375,13 @@ Ciri gaya yang harus ditiru dari contoh tersebut:
   kalimat panjang yang mengalir.
 - Hindari klise AI seperti "dalam dunia yang penuh warna", "sejak saat itu
   hidupnya berubah", "sebuah perjalanan yang tak terlupakan".
+- LARANGAN POLA PEMBUKA PARAGRAF: setiap paragraf DILARANG dibuka dengan
+  klausa pendek (kurang dari 5 kata) yang langsung diikuti koma, seperti
+  "12 Februari 2000, ..." atau "Ketika usia dua puluh lima, ..." atau
+  "Kini, Kennedy ...". Klausa sebelum koma pertama di awal paragraf harus
+  berisi MINIMAL 5 KATA, atau lebih baik lagi, tulis kalimat pembuka tanpa
+  koma sama sekali di bagian awalnya. Variasikan struktur kalimat pembuka
+  antar paragraf (jangan semua paragraf punya pola "frasa pendek, lalu...").
 
 Struktur tetap tiga bagian (tanpa heading eksplisit di hasil akhir):
 1. ORIENTASI — pengenalan tokoh: nama, tanggal & tempat lahir (eksplisit,
@@ -410,7 +417,7 @@ Reorientasi, sudut pandang orang ketiga.
 Nama karakter: ${name}
 Tempat lahir: ${place}
 Tanggal lahir: ${date}
-Latar belakang/Kisah/Pekerjaan: ${notes}
+Latar belakang & masalah yang dihadapi: ${notes}
 
 Ketentuan:
 - Paragraf awal (Orientasi): sebutkan tanggal dan tempat lahir secara
@@ -425,19 +432,74 @@ Ketentuan:
   berupa penerimaan atau perjalanan yang masih berlanjut, tidak harus
   pencapaian besar yang disebut gamblang.
 - Gunakan sudut pandang orang ketiga sepanjang cerita.
+- PENTING: jangan buka paragraf mana pun dengan klausa pendek (<5 kata)
+  yang langsung diikuti koma (contoh pola yang DILARANG: "12 Februari 2000,
+  Los Santos..." atau "Kini, Kennedy..."). Mulai tiap paragraf dengan
+  kalimat yang lebih utuh.
 `.trim();
 
+  const baseMessages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt },
+  ];
+
+  let result = await callGroqForStory(baseMessages);
+
+  // Jaring pengaman: kalau model masih melanggar aturan pembuka paragraf
+  // (klausa <5 kata lalu koma), minta ulang sekali dengan teguran eksplisit
+  // menyebutkan paragraf mana yang melanggar.
+  const violations = findShortOpeningViolations(result);
+  if (violations.length > 0) {
+    const retryMessages = [
+      ...baseMessages,
+      { role: 'assistant', content: result },
+      {
+        role: 'user',
+        content:
+          `Tulisan di atas masih melanggar aturan pembuka paragraf. ` +
+          `Paragraf berikut dibuka dengan klausa terlalu pendek (<5 kata) ` +
+          `sebelum koma: ${violations.map((v) => `"${v}"`).join(', ')}. ` +
+          `Tolong tulis ULANG seluruh cerita dengan isi dan struktur yang sama, ` +
+          `tapi perbaiki SEMUA kalimat pembuka paragraf itu — jangan ada yang ` +
+          `dibuka dengan frasa pendek lalu koma.`,
+      },
+    ];
+    result = await callGroqForStory(retryMessages);
+  }
+
+  return result;
+}
+
+async function callGroqForStory(messages) {
   const completion = await openai.chat.completions.create({
     model: process.env.GROQ_MODEL || 'openai/gpt-oss-120b',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
+    messages,
     temperature: 0.9,
     max_tokens: 1000,
   });
-
   return completion.choices[0].message.content.trim();
+}
+
+// Cek tiap paragraf: apakah klausa sebelum koma PERTAMA di awal paragraf
+// berisi kurang dari 5 kata. Mengembalikan daftar klausa yang melanggar.
+function findShortOpeningViolations(text) {
+  const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+  const violations = [];
+
+  for (const paragraph of paragraphs) {
+    const trimmed = paragraph.trim();
+    const commaIndex = trimmed.indexOf(',');
+    if (commaIndex === -1) continue; // tidak ada koma di awal, aman
+
+    const beforeComma = trimmed.slice(0, commaIndex).trim();
+    const wordCount = beforeComma.split(/\s+/).filter(Boolean).length;
+
+    if (wordCount > 0 && wordCount < 5) {
+      violations.push(beforeComma);
+    }
+  }
+
+  return violations;
 }
 
 client.login(process.env.DISCORD_TOKEN);
