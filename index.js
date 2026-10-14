@@ -122,6 +122,18 @@ function sanitizeText(text) {
   return result;
 }
 
+// Beri indentasi 3 spasi di awal tiap paragraf, sesuai regulasi character
+// story ("Selalu memberi 3 spasi pada setiap awal paragraf"). Dilakukan di
+// kode, bukan mengandalkan model, supaya hasilnya selalu konsisten.
+function indentParagraphs(text) {
+  return text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => '   ' + p)
+    .join('\n\n');
+}
+
 // ================== SLASH COMMAND DEFINITION ==================
 const commands = [
   new SlashCommandBuilder()
@@ -188,9 +200,9 @@ function buildCharacterModal() {
 
   const paragraphInput = new TextInputBuilder()
     .setCustomId('charParagraphs')
-    .setLabel('Jumlah Paragraf (angka)')
+    .setLabel('Jumlah Paragraf (minimal 4)')
     .setStyle(TextInputStyle.Short)
-    .setPlaceholder(safePlaceholder('Contoh: 3'))
+    .setPlaceholder(safePlaceholder('Contoh: 4'))
     .setRequired(true);
 
   const notesInput = new TextInputBuilder()
@@ -297,7 +309,8 @@ client.on('interactionCreate', async (interaction) => {
     const paragraphsRaw = interaction.fields.getTextInputValue('charParagraphs');
     const notes = interaction.fields.getTextInputValue('charNotes') || '-';
 
-    const paragraphs = Math.max(1, Math.min(10, parseInt(paragraphsRaw) || 3));
+    // Regulasi mewajibkan minimal 4 paragraf.
+    const paragraphs = Math.max(4, Math.min(10, parseInt(paragraphsRaw) || 4));
 
     try {
       const rawStory = await generateCharacterStory({
@@ -307,7 +320,10 @@ client.on('interactionCreate', async (interaction) => {
         paragraphs,
         notes,
       });
-      const story = sanitizeText(rawStory);
+      const cleanedStory = sanitizeText(rawStory);
+      // Beri indentasi 3 spasi di awal tiap paragraf sesuai regulasi,
+      // dilakukan di kode (bukan cuma mengandalkan model) supaya konsisten.
+      const story = indentParagraphs(cleanedStory);
 
       // Susun isi file .txt: judul + metadata singkat + isi cerita.
       const fileContent =
@@ -350,11 +366,14 @@ tiga bagian berurutan, namun ditulis dengan gaya PROSA NARATIF BERMAJAS
 kiasan/majas, 60% tetap menyampaikan informasi secara jelas.
 
 CONTOH GAYA YANG DIACU (ikuti nuansa ini, bukan disalin):
-"01 Januari 2000, Los Santos menyambut kelahiran Gantenbainne Mosqueda
-dengan cara yang sederhana. Tidak ada pertanda langit terbelah atau
-sesuatu yang mengubah arah kota; hanya seorang anak yang kelak akan
+"Pada tanggal 1 Januari 2000, Los Santos menyambut kelahiran Gantenbainne
+Mosqueda dengan cara yang sederhana. Tidak ada pertanda langit terbelah
+atau sesuatu yang mengubah arah kota; hanya seorang anak yang kelak akan
 mengenal jalanan lebih baik daripada cerita yang tertulis tentang
 dirinya..."
+(Catatan: contoh di atas sengaja dibuka dengan klausa yang CUKUP PANJANG
+sebelum koma — "Pada tanggal 1 Januari 2000" + nama tempat — bukan klausa
+pendek seperti "1 Januari 2000," saja.)
 
 Ciri gaya yang harus ditiru dari contoh tersebut:
 - Tanggal dan tempat lahir tetap disebut EKSPLISIT di kalimat/paragraf
@@ -420,6 +439,36 @@ Aturan karakter/typografi (PENTING):
 - Gunakan tiga titik biasa (...) — JANGAN gunakan karakter ellipsis tunggal (…).
 - Hindari karakter unicode non-standar lainnya. Tulis murni dengan huruf,
   angka, dan tanda baca ASCII standar.
+
+Aturan EYD (Ejaan yang Disempurnakan) — WAJIB dipatuhi ketat:
+- Huruf kapital di awal setiap kalimat dan setiap paragraf.
+- Huruf kapital di awal nama orang (mis. "Grace Jhonatan").
+- Huruf kapital di awal nama negara (mis. "Amerika Serikat").
+- Huruf kapital di awal nama kota/tempat (mis. "Kota Los Santos", "Los Santos").
+- Huruf kapital di awal nama hari (mis. "Senin") dan nama bulan (mis. "November").
+- Huruf kapital di awal nama profesi ketika merujuk peran spesifik
+  (mis. "seorang Mekanik").
+- Huruf kapital di awal hubungan kekerabatan BILA BERDIRI SENDIRI tanpa
+  imbuhan (mis. "Ayah", "Ibu", "Kakak", "Adik"). TETAPI jika ada imbuhan
+  "-nya", TETAP huruf kecil (mis. "ayahnya", "ibunya", "kakaknya",
+  "adiknya") — JANGAN "Ayahnya" atau "Ibunya".
+- Setiap kalimat WAJIB diakhiri tanda titik (.).
+- Tanda koma dipakai sebelum kata penghubung pertentangan ("tetapi",
+  "melainkan", "sedangkan") dalam kalimat majemuk.
+- DILARANG KERAS menyingkat kata apa pun (mis. "yang" jangan jadi "yg",
+  "sedangkan" jangan jadi "sdgkan", "berjalan" jangan jadi "brjln").
+  Semua kata harus ditulis lengkap dan baku.
+
+Aturan format penulisan tanggal:
+- Tanggal lahir WAJIB ditulis dalam format "1 Januari 2000" — tanpa
+  simbol "/" maupun "-", dan tanpa angka nol di depan tanggal
+  (mis. "1" bukan "01").
+
+Aturan panjang & struktur paragraf:
+- Setiap paragraf berisi MINIMAL 4 kalimat, dan setiap kalimat diakhiri
+  tanda titik.
+- Jumlah paragraf mengikuti permintaan user (minimal 4 paragraf bila
+  user tidak menentukan jumlah lebih kecil).
 `.trim();
 
   const userPrompt = `
@@ -450,6 +499,16 @@ Ketentuan:
   yang langsung diikuti koma (contoh pola yang DILARANG: "12 Februari 2000,
   Los Santos..." atau "Kini, Kennedy..."). Mulai tiap paragraf dengan
   kalimat yang lebih utuh.
+- Tulis tanggal lahir dalam narasi dengan format "${date}" persis seperti
+  yang diberikan (tanpa simbol "/" atau "-", tanpa angka nol di depan).
+- Setiap paragraf harus berisi minimal 4 kalimat, masing-masing diakhiri
+  tanda titik.
+- Patuhi EYD secara ketat: kapital di awal kalimat/paragraf, kapital pada
+  nama orang/tempat/negara/hari/bulan/profesi spesifik, kapital pada kata
+  kekerabatan BERDIRI SENDIRI (Ayah/Ibu) tapi huruf kecil bila berimbuhan
+  "-nya" (ayahnya/ibunya). Jangan menyingkat kata apa pun.
+- Tulis nama karakter PERSIS seperti input ("${name}"), tanpa menambah
+  underscore atau simbol lain.
 `.trim();
 
   const baseMessages = [
